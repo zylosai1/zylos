@@ -1,0 +1,36 @@
+# Core
+fastapi
+uvicorn[standard]
+sqlmodel
+pydantic-settings
+python-jose[cryptography]
+passlib[bcrypt]
+requests
+aiofiles
+python-multipart
+
+# DB / infra
+psycopg2-binary
+redis
+aioredis
+
+# Vector / RAG (optional heavy)
+sentence-transformers
+faiss-cpu
+numpy
+
+# OCR / image
+pillow
+pytesseract
+opencv-python
+
+# Audio
+pyttsx3
+vosk
+
+# Push / notifications (optional)
+pyfcm
+
+# Dev / Tools
+python-dotenv
+pytest
