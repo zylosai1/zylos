@@ -1,80 +1,107 @@
+# app/ai/rag_engine.py
 """
-RAG Engine wrapper.
-- Uses app.database.vector_store.vector_store for embeddings + FAISS.
-- Provides search(query, k) -> list[str] (relevant docs/snippets)
-- Provides rank_by_relevance(query, candidates) -> list[(candidate, score)]
+RAG Engine for Zylos.
+- Wraps the vector store to provide search and ranking capabilities.
+- Provides `search` to find relevant documents for a user.
+- Provides `rank_candidates` to score and sort texts based on relevance to a query.
 """
 
-from typing import List, Tuple
 import logging
+from typing import List, Dict, Any
 
+# --- Dependencies --- #
+# Attempt to import vector store and its dependencies. If they are not installed,
+# the RAG engine will be disabled, and the application will fall back to simpler methods.
 try:
     from app.database.vector_store import vector_store
-except Exception as e:
+    import numpy as np
+    VECTOR_STORE_AVAILABLE = True
+except ImportError as e:
     vector_store = None
-    logging.warning("[rag_engine] vector_store import failed: %s", e)
+    np = None
+    VECTOR_STORE_AVAILABLE = False
+    logging.warning(f"[rag_engine] Vector store dependencies not found. RAG features will be disabled. Error: {e}")
 
+# --- Public Functions --- #
 
-def def search(query: str, k: int = 5) -> List[str]:
+def search(user_id: str, query: str, k: int = 5) -> List[Dict[str, Any]]:
     """
-    Return up to k relevant stored memory/documents for the query.
-    If vector_store missing, returns empty list.
+    Searches the vector store for the top `k` documents relevant to the query,
+    filtered for a specific user.
+
+    Args:
+        user_id: The ID of the user to filter memories for.
+        query: The user's search query.
+        k: The maximum number of results to return.
+
+    Returns:
+        A list of result dictionaries, each containing document text and metadata.
     """
-    if not query:
+    if not query or not VECTOR_STORE_AVAILABLE:
         return []
-    if vector_store is None:
-        # no vector backend — return empty
-        return []
+
     try:
-        results = vector_store.search(query, k=k)
-        # vector_store may return raw doc texts
+        # The vector store's search method must support filtering by metadata.
+        results = vector_store.search(query, k=k, filter_metadata={"user_id": user_id})
         return results or []
     except Exception as e:
-        logging.exception("RAG search failed: %s", e)
+        logging.exception(f"RAG search failed for user '{user_id}': {e}")
         return []
 
+def rank_candidates(query: str, candidates: List[str], k: int = 10) -> List[Dict[str, Any]]:
+    """
+    Ranks a list of candidate texts against a query for relevance.
 
-def rank_candidates(query: str, candidates: List[str]) -> List[Tuple[str, float]]:
+    If the vector store is available, it uses cosine similarity for accurate ranking.
+    Otherwise, it falls back to a simple keyword-based (Jaccard) similarity score.
+
+    Args:
+        query: The query to rank against.
+        candidates: A list of texts to be ranked.
+        k: The number of top candidates to return.
+
+    Returns:
+        A sorted list of dictionaries, each with 'text' and 'score' keys.
     """
-    Naive ranking wrapper: if vector_store available, use similarity ranking.
-    Otherwise, fallback to heuristic keyword overlap scoring.
-    Returns list of (candidate, score) descending.
-    """
-    if not candidates:
+    if not query or not candidates:
         return []
 
-    if vector_store is not None:
+    # --- Vector-based Ranking (High Quality) ---
+    if VECTOR_STORE_AVAILABLE:
         try:
-            # Use internal encode -> cosine / L2 similarity if available.
-            # vector_store.search returns docs; to rank a provided candidate list
-            # we can add them temporarily or rely on model.encode and numpy.
-            # For simplicity, implement a model-based ranking if model present.
-            # NOTE: This function tries best-effort — vector_store.model should exist.
             model = getattr(vector_store, "model", None)
-            index = getattr(vector_store, "index", None)
-            docs = getattr(vector_store, "docs", None)
-            if model is None or index is None:
-                raise RuntimeError("vector_store missing model/index")
-            import numpy as np
-            # encode query and candidates
-            q_emb = model.encode([query], convert_to_numpy=True).astype("float32")
-            cand_embs = model.encode(candidates, convert_to_numpy=True).astype("float32")
-            # compute cosine similarity
-            def cosine(a, b):
-                return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-10))
-            scores = [cosine(q_emb[0], cand_embs[i]) for i in range(len(candidates))]
-            ranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)
-            return ranked
-        except Exception:
-            # fall through to heuristic
-            pass
+            if model is None:
+                raise RuntimeError("Vector store is missing the 'model' attribute required for encoding.")
 
-    # Heuristic scoring: token overlap
-    qtokens = set(query.lower().split())
-    scored = []
-    for c in candidates:
-        ctokens = set(c.lower().split())
-        score = len(qtokens.intersection(ctokens)) / (1 + len(ctokens))
-        scored.append((c, float(score)))
-    scored_sorted = sorted(scored, key=lambda x: x[1], reverse=True)
-    return scored_sorted
+            # Encode the query and candidate texts, normalizing them for cosine similarity.
+            q_emb = model.encode([query], convert_to_numpy=True, normalize_embeddings=True)
+            cand_embs = model.encode(candidates, convert_to_numpy=True, normalize_embeddings=True)
+
+            # Calculate cosine similarity (dot product of normalized vectors).
+            scores = np.dot(cand_embs, q_emb.T).flatten().tolist()
+
+            ranked = [{"text": c, "score": s} for c, s in zip(candidates, scores)]
+            ranked.sort(key=lambda x: x["score"], reverse=True) # Sort descending by score
+            return ranked[:k]
+
+        except Exception as e:
+            logging.warning(f"Vector-based ranking failed, falling back to keyword method. Error: {e}")
+            # Fall through to the keyword-based fallback method.
+
+    # --- Keyword-based Ranking (Fallback) ---
+    q_tokens = set(query.lower().split())
+    if not q_tokens:
+        return []
+
+    scored_candidates = []
+    for text in candidates:
+        c_tokens = set(text.lower().split())
+        if not c_tokens:
+            score = 0.0
+        else:
+            # Jaccard similarity: intersection over union
+            score = len(q_tokens.intersection(c_tokens)) / len(q_tokens.union(c_tokens))
+        scored_candidates.append({"text": text, "score": score})
+
+    scored_candidates.sort(key=lambda x: x["score"], reverse=True)
+    return scored_candidates[:k]
