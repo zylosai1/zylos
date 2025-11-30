@@ -34,3 +34,7 @@ pyfcm
 # Dev / Tools
 python-dotenv
 pytest
+
+
+email-validator
+python-multipart
