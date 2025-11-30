@@ -77,7 +77,7 @@ def update_device_last_seen_sql(session: Session, device_id: str):
 # -------------------------
 def add_training_item_sql(session: Session, prompt: str, response: str, user_id: Optional[str] = None, source: Optional[str] = None, approved: bool = False) -> TrainingItem:
     t = TrainingItem(user_id=user_id, prompt=prompt, response=response, source=source, approved=approved)
-    session..add(t)
+    session.add(t)
     session.commit()
     session.refresh(t)
     return t
