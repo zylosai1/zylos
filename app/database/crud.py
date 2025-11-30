@@ -37,8 +37,8 @@ def get_or_create_conv_sql(session: Session, user_id: str) -> Conversation:
 # -------------------------
 # MESSAGE helpers
 # -------------------------
-def add_message_sql(session: Session, conversation_id: str, role: str, text: str, user_id: Optional[str] = None, metadata: Optional[str] = None) -> Message:
-    m = Message(conversation_id=conversation_id, user_id=user_id, role=role, text=text, metadata=metadata)
+def add_message_sql(session: Session, conversation_id: str, role: str, text: str, user_id: Optional[str] = None, meta: Optional[str] = None) -> Message:
+    m = Message(conversation_id=conversation_id, user_id=user_id, role=role, text=text, meta=meta)
     session.add(m)
     session.commit()
     session.refresh(m)
@@ -77,7 +77,7 @@ def update_device_last_seen_sql(session: Session, device_id: str):
 # -------------------------
 def add_training_item_sql(session: Session, prompt: str, response: str, user_id: Optional[str] = None, source: Optional[str] = None, approved: bool = False) -> TrainingItem:
     t = TrainingItem(user_id=user_id, prompt=prompt, response=response, source=source, approved=approved)
-    session.add(t)
+    session..add(t)
     session.commit()
     session.refresh(t)
     return t
@@ -109,9 +109,9 @@ def get_or_create_conv(session_or_db, user_id: str):
     else:
         raise NotImplementedError("Only SQL DB_MODE supported in this CRUD implementation.")
 
-def add_message(session_or_db, conv_id: str, role: str, text: str, user_id: Optional[str] = None, metadata: Optional[str] = None):
+def add_message(session_or_db, conv_id: str, role: str, text: str, user_id: Optional[str] = None, meta: Optional[str] = None):
     if DB_MODE in ("sqlite", "supabase"):
-        return add_message_sql(session_or_db, conv_id, role, text, user_id, metadata)
+        return add_message_sql(session_or_db, conv_id, role, text, user_id, meta)
     else:
         raise NotImplementedError("Only SQL DB_MODE supported in this CRUD implementation.")
 

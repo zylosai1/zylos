@@ -36,7 +36,7 @@ class Message(SQLModel, table=True):
     user_id: Optional[str] = Field(default=None, index=True)
     role: str  # "user" | "zylos" | "system"
     text: str
-    metadata: Optional[str] = None
+    meta: Optional[str] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
