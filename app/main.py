@@ -2,6 +2,8 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 from app.core.config import settings
 from app.database.base import init_db
 from app.api import (
@@ -22,6 +24,8 @@ app = FastAPI(
     description="Zylos AI Backend — Multi-Device, Multi-Agent Intelligent Assistant",
     version="1.0.0"
 )
+
+app.mount("/portal", StaticFiles(directory="public"), name="portal")
 
 # ------------------------------------------------------------
 # CORS (Frontend Access Control)
@@ -50,6 +54,10 @@ app.include_router(routes_memory.router, prefix=f"{settings.API_V1_STR}/memory")
 
 # WebSocket router (NO prefix)
 app.include_router(ws_router.router)
+
+@app.get("/", include_in_schema=False)
+async def root():
+    return RedirectResponse(url="/portal/index.html")
 
 # ------------------------------------------------------------
 # INITIALIZE DATABASE
