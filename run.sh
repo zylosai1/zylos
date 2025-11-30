@@ -17,7 +17,11 @@ fi
 
 echo "[run.sh] Installing requirements..."
 pip install --upgrade pip
-pip install -r requirements.txt
+if [ -f "requirements.txt" ]; then
+  pip install -r requirements.txt
+fi
+
+export PYTHONPATH=.
 
 echo "[run.sh] Initializing DB and folders..."
 python scripts/init_db.py

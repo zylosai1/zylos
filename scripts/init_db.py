@@ -8,6 +8,8 @@ from pathlib import Path
 import logging
 
 from app.database.base import init_db, DB_MODE
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("init_db")
